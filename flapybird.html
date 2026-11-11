@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="https://code.jquery.com/jquery-3.7.1.slim.js"
+    integrity="sha256-UgvvN8vBkgO0luPSUl2s8TIlOSYRoGFAX4jlCIm9Adc=" crossorigin="anonymous">
+  </script>
+  <style>
+    body {
+      background: #0f0f1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: sans-serif;
+      color: white;
+    }
+    canvas {
+      border: 1px solid #000;
+      background: #70c5ce; /* color del cielo estilo flappy */
+    }
+    #hud {
+      display: flex;
+      justify-content: space-between;
+      width: 600px;
+      margin-top: 10px;
+      font-size: 18px;
+    }
+  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flappy Bird</title>
+</head>
+<body>
+  <div id="hud">
+    <span>Puntaje: <span id="puntaje">0</span></span>
+    <span>Instrucción: <span id="vidas">Presiona ESPACIO para saltar</span></span>
+  </div>
+  <canvas id="quadro" width="600" height="500"></canvas>
+
+  <script>
+    $().ready(function () {
+
+      var canvas = $("#quadro")[0];
+      var ctx = canvas.getContext("2d");
+
+      var juegoTerminado = false;
+      var puntaje =0;
+
+      // Pájaro
+      var ave = {
+        x: 100,
+        y: 200,
+        vy: 0,
+        gravedad: 0.35,
+        salto: -5,
+        ancho: 24,
+        alto: 24,
+        cor: "#ffca3a"
+      };
+
+      // Tuberías
+      var tuberias = [];
+      var anchoTuberia = 50;
+      var espacioEntreTuberias = 150;
+      var velocidadTuberia = 2;
+      var colorTuberia = "#8ac926";
+
+      // Función para generar un par de tuberías (superior e inferior)
+      function crearTuberia() {
+        var altoMinimo = 50;
+        var altoMaximo = canvas.height - espacioEntreTuberias - altoMinimo;
+        var altoSuperior = Math.floor(Math.random() * (altoMaximo - altoMinimo + 1)) + altoMinimo;
+
+        tuberias.push({
+          x: canvas.width,
+          altoSuperior: altoSuperior,
+          yInferior: altoSuperior + espacioEntreTuberias,
+          pasado: false
+        });
+      }
+
+      // Crear la primera tubería al iniciar
+      crearTuberia();
+
+      // Limpia la pantalla
+      function apagaTela() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+
+      function actualizaHUD() {
+        $("#puntaje").text(puntaje);
+      }
+
+      function dibujaMensaje(texto) {
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(0, canvas.height / 2 - 40, canvas.width, 80);
+        ctx.fillStyle = "white";
+        ctx.font = "28px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(texto, canvas.width / 2, canvas.height / 2 + 10);
+      }
+
+      // Bucle principal de animación
+      function animacao() {
+        if (juegoTerminado) return;
+
+        apagaTela();
+
+        // Aplicar gravedad al pájaro
+        ave.vy += ave.gravedad;
+        ave.y += ave.vy;
+
+        // Limites con suelo y techo
+        if (ave.y <= 0) {
+          ave.y = 0;
+          ave.vy = 0;
+        }
+
+        if (ave.y + ave.alto >= canvas.height) {
+          juegoTerminado = true;
+          dibujaMensaje("Perdiste - Puntaje final: " + puntaje);
+          return;
+        }
+
+        // Mover y administrar tuberías
+        for (var i = 0; i < tuberias.length; i++) {
+          var t = tuberias[i];
+          t.x -= velocidadTuberia;
+
+          // Sumar puntaje si el pájaro pasa la tubería
+          if (!t.pasado && t.x + anchoTuberia < ave.x) {
+            t.pasado = true;
+            puntaje += 1;
+            actualizaHUD();
+
+            // VERIFICACIÓN DE VICTORIA AT 50 PTS
+            if (puntaje >= 50) {
+              juegoTerminado = true;
+            }
+          }
+
+          // Detección de colisiones (AABB)
+          var chocaX = ave.x + ave.ancho > t.x && ave.x < t.x + anchoTuberia;
+          var chocaSuperior = ave.y < t.altoSuperior;
+          var chocaInferior = ave.y + ave.alto > t.yInferior;
+
+          if (chocaX && (chocaSuperior || chocaInferior)) {
+            juegoTerminado = true;
+            dibujaMensaje("Perdiste - Puntaje final: " + puntaje);
+            return;
+          }
+        }
+
+        // Crear nuevas tuberías periódicamente
+        if (tuberias.length > 0 && tuberias[tuberias.length - 1].x < canvas.width - 200) {
+          crearTuberia();
+        }
+
+        // Eliminar tuberías fuera de pantalla
+        if (tuberias.length > 0 && tuberias[0].x + anchoTuberia < 0) {
+          tuberias.shift();
+        }
+
+        // Dibujar tuberías
+        for (var j = 0; j < tuberias.length; j++) {
+          var tub = tuberias[j];
+          ctx.fillStyle = colorTuberia;
+          ctx.strokeStyle = "#1a1a2e";
+          ctx.lineWidth = 2;
+
+          // Tuberia superior
+          ctx.fillRect(tub.x, 0, anchoTuberia, tub.altoSuperior);
+          ctx.strokeRect(tub.x, 0, anchoTuberia, tub.altoSuperior);
+
+          // Tuberia inferior
+          var altoInferior = canvas.height - tub.yInferior;
+          ctx.fillRect(tub.x, tub.yInferior, anchoTuberia, altoInferior);
+          ctx.strokeRect(tub.x, tub.yInferior, anchoTuberia, altoInferior);
+        }
+
+        // Dibujar ave
+        ctx.fillStyle = ave.cor;
+        ctx.fillRect(ave.x, ave.y, ave.ancho, ave.alto);
+
+        // Si se cumplió la condición de victoria, se corta el ciclo y se muestra el mensaje
+        if (juegoTerminado) {
+          if (puntaje >= 50) {
+            dibujaMensaje("¡Ganaste! Puntaje final: " + puntaje);
+          }
+          return;
+        }
+
+        requestAnimationFrame(animacao);
+      }
+
+      animacao();
+
+      // Escuchar eventos de teclado para el salto
+      $(document).keydown(function (event) {
+        if (event.which == 32) { // Tecla Espacio
+          if (!juegoTerminado) {
+            ave.vy = ave.salto;
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
